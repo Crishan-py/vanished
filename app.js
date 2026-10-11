@@ -43,6 +43,13 @@ var CATEGORY_COLORS = {
   other:    '#a49a8b'
 };
 
+// How much weight a claim carries. Shown in the UI, never hidden.
+var CONFIDENCE = {
+  verified:    { label: 'Verified',      note: 'Name, year and story checked.' },
+  approximate: { label: 'Area level',    note: 'True of this area, but no specific building is named.' },
+  recalled:    { label: 'Unconfirmed',   note: 'From memory. Check it before you trust it.' }
+};
+
 var STORE_KEY = 'vanished.places.v1';   // user's own additions/edits
 var FILTER_KEY = 'vanished.filter.v1';  // last used filters
 
@@ -78,6 +85,7 @@ function init(){
   restoreView();
   updateStats();
   updateStorageHint();
+  registerServiceWorker();
 }
 
 function initMap(){
@@ -171,6 +179,11 @@ function popupHtml(p){
   var h = '<p class="v-name">' + escapeHtml(p.name) + '</p>';
   h += '<p class="v-meta">' + escapeHtml(categoryLabel(p.category)) +
        (p.closed ? ' · closed ' + p.closed : '') + '</p>';
+  var c = confidenceOf(p);
+  if (c && c !== 'verified'){
+    h += '<p class="v-flag" title="' + escapeHtml(CONFIDENCE[c].note) + '">' +
+         escapeHtml(CONFIDENCE[c].label) + '</p>';
+  }
   if (p.description){
     h += '<p class="v-desc">' + escapeHtml(p.description).slice(0, 220) +
          (p.description.length > 220 ? '&hellip;' : '') + '</p>';
@@ -178,6 +191,11 @@ function popupHtml(p){
   h += '<button type="button" class="btn btn-small" data-open="' +
        escapeHtml(p.id) + '">Open</button>';
   return h;
+}
+
+function confidenceOf(p){
+  if (p.seed !== true) return 'verified';  // your own entries are your claims
+  return CONFIDENCE[p.confidence] ? p.confidence : 'recalled';
 }
 
 function renderAll(){
@@ -303,6 +321,11 @@ function detailHtml(p){
   h += '<span class="detail-cat">' + escapeHtml(categoryLabel(p.category)) + '</span>';
   h += '<h2 class="detail-name">' + escapeHtml(p.name) + '</h2>';
   if (p.address) h += '<p class="detail-addr">' + escapeHtml(p.address) + '</p>';
+
+  var conf = confidenceOf(p);
+  h += '<p class="detail-conf conf-' + conf + '">' +
+       '<b>' + escapeHtml(CONFIDENCE[conf].label) + '</b> ' +
+       escapeHtml(CONFIDENCE[conf].note) + '</p>';
 
   if (p.closed){
     h += '<p class="detail-when">Closed <b>' + p.closed + '</b></p>';
@@ -698,6 +721,11 @@ function bindEvents(){
     }, 60);
   });
 
+  document.getElementById('btn-geocode').addEventListener('click', geocodeAddress);
+  document.getElementById('f-geocode').addEventListener('keydown', function(e){
+    if (e.key === 'Enter'){ e.preventDefault(); geocodeAddress(); }
+  });
+
   document.getElementById('btn-export').addEventListener('click', exportJSON);
   document.getElementById('btn-import').addEventListener('click', function(){
     document.getElementById('file-import').click();
@@ -726,6 +754,75 @@ function bindEvents(){
   // remember where the user was looking
   map.on('moveend zoomend', rememberView);
   window.addEventListener('beforeunload', rememberView);
+}
+
+/* ============================ ADDRESS LOOKUP ============================
+   Free OpenStreetMap geocoding. Nominatim's usage policy caps this at
+   one request per second and forbids autocomplete-as-you-type, so this
+   fires on an explicit button press only, never on keystroke.
+   ====================================================================== */
+
+var geocodeBusy = false;
+
+function geocodeAddress(){
+  var query = document.getElementById('f-geocode').value.trim();
+  var errEl = document.getElementById('form-error');
+  var btn = document.getElementById('btn-geocode');
+
+  if (geocodeBusy) return;
+  if (!query){
+    errEl.textContent = 'Type something to search for first.';
+    errEl.hidden = false;
+    return;
+  }
+
+  geocodeBusy = true;
+  btn.disabled = true;
+  btn.textContent = 'Searching…';
+
+  var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=' +
+            encodeURIComponent(query);
+
+  fetch(url)
+    .then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(results){
+      errEl.hidden = true;
+      if (!results.length){
+        errEl.textContent = 'Nothing found for "' + query + '". Try adding a city or district.';
+        errEl.hidden = false;
+        return;
+      }
+      var hit = results[0];
+      document.getElementById('f-lat').value = parseFloat(hit.lat).toFixed(6);
+      document.getElementById('f-lng').value = parseFloat(hit.lon).toFixed(6);
+      if (!document.getElementById('f-address').value.trim()){
+        document.getElementById('f-address').value = hit.display_name;
+      }
+      map.setView([hit.lat, hit.lon], 16);
+    })
+    .catch(function(e){
+      errEl.textContent = 'Lookup failed (' + e.message + '). You can type coordinates in by hand.';
+      errEl.hidden = false;
+    })
+    .finally(function(){
+      geocodeBusy = false;
+      btn.disabled = false;
+      btn.textContent = 'Find it';
+    });
+}
+
+/* ============================ PWA ============================ */
+
+function registerServiceWorker(){
+  if (!('serviceWorker' in navigator)) return;
+  // only over http(s) — a service worker on file:// is rejected silently
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+  navigator.serviceWorker.register('sw.js').catch(function(e){
+    console.warn('vanished: service worker not registered', e);
+  });
 }
 
 /* ============================ HELPERS ============================ */

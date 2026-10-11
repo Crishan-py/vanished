@@ -4,7 +4,7 @@ A map of places that no longer exist.
 
 Every city has a layer of ghosts that no map records — the arcade that closed in 2021, the mall with the shuttered food court, the bakery on the corner. Vanished is a place to put those, with a pin, a year, and the story.
 
-**Status: PART 1 — core working.** See [Roadmap](#roadmap) below.
+**Live:** https://crishan-py.github.io/vanished
 
 ---
 
@@ -30,23 +30,50 @@ cd D:\projects\vanished
 node test.js
 ```
 
-43 checks, no dependencies: seed data validity, filtering, search, validation,
-HTML escaping, add/persist/delete round-trip. Runs app.js against a stubbed DOM,
-so it needs no browser.
+54 checks, no dependencies: seed validity, confidence handling, filtering, search,
+validation, HTML escaping, add/persist/delete round-trip. Runs `app.js` against a
+stubbed DOM, so it needs no browser.
 
 ---
 
-## What's in Part 1
+## What's in it
 
+**Part 1 — core**
 - Leaflet + OpenStreetMap map (free, no key, no account)
-- 8 seed places to prove the app works
-- Add / edit / delete your own places
+- Add / edit / delete places
 - Click-to-place a pin, or type coordinates
 - Filter by kind of place and by the year it closed
 - Search across name, address, and story
 - Export / import the whole set as JSON
 - Your additions are saved in the browser automatically
-- Dark, warm, low-glare styling
+
+**Part 2 — usable**
+- **Address lookup** — type "Thamel" and it fills the address and coordinates
+- **Confidence badges** — every entry says how much weight it carries
+- **Installable as an app** — works offline, add to home screen
+- **Deployed** to GitHub Pages on every push
+
+## Read this before you edit the seed data
+
+Every entry in `places.js` carries a `confidence` flag, and the map shows it:
+
+| Flag | Means |
+|---|---|
+| `verified` | Name, year and story checked. |
+| `approximate` | True of this area, but no specific building is named. |
+| `recalled` | From memory. **Check it before you trust it.** |
+
+The Kathmandu entries are `approximate` or `recalled`. They are honest about what
+they are: area-level claims about the 2015 earthquake and the metro works, and three
+named structures I could not verify. They are *not* presented as confirmed history,
+and you should not either.
+
+**Do not copy this pattern of shipping claims you haven't checked.** If you edit the
+seed, set the flag to match how sure you actually are. The badge is only worth having
+if it's honest.
+
+Coordinates are city or district level, not street addresses. They say roughly where
+something was, not the doorstep.
 
 ## How your data is stored
 
@@ -72,9 +99,13 @@ vanished/
 ├── style.css      dark theme
 ├── app.js         all the logic
 ├── places.js      seed data — edit this
+├── sw.js          offline support
+├── manifest.json  installable app metadata
+├── icon-*.png     app icons
+├── make-icons.cjs regenerates the icons, no dependencies
 ├── dev-server.cjs static file server, no dependencies
-├── test.js        43 checks, run with: node test.js
-└── README.md      this file
+├── test.js        54 checks, run with: node test.js
+└── .github/workflows/deploy.yml   auto-deploy to Pages
 ```
 
 ## The dev server
@@ -102,6 +133,7 @@ One entry in `places.js`:
   description: 'The twin towers...',  the part that matters
   photo:       '',                   image URL
   source:      '',                   link
+  confidence:  'verified',           verified | approximate | recalled
   seed:        true
 }
 ```
@@ -113,12 +145,15 @@ Categories: `cinema` `arcade` `mall` `cafe` `shop` `park` `sport` `transit` `lan
 ## Roadmap
 
 - [x] **Part 1** — core map, add/edit/delete, filter, search, JSON, localStorage
-- [ ] **Part 2** — replace the placeholder seed with real Kathmandu places, photos, PWA install
+- [x] **Part 2** — address lookup, confidence badges, PWA install, GitHub Pages deploy
 - [ ] **Part 3** — public sharing; multiple people adding to the same map
 - [ ] **Later** — timeline scrubber, memory prompts ("what's missing near here?")
 
-Part 3 is the one that decides whether this is a personal notebook or a real shared map of loss. It needs a backend, which is the first thing in this project that costs more than $0.
+Part 3 is the one that decides whether this is a personal notebook or a real shared
+map of loss. It needs a backend, which is the first thing in this project that costs
+more than $0.
 
 ## Credits
 
 Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, tiles via Leaflet.
+Address lookup by [Nominatim](https://nominatim.org/), used within their usage policy.

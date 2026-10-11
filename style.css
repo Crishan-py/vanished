@@ -129,6 +129,11 @@ a{ color:var(--accent); }
 .v-name{ font-weight:600; font-size:15px; color:var(--ink); margin:0 0 3px; }
 .v-meta{ font-size:12px; color:var(--ink-faint); margin:0 0 8px; }
 .v-desc{ font-size:13.5px; line-height:1.5; color:var(--ink-dim); margin:0 0 8px; white-space:pre-wrap; }
+.v-flag{
+  display:inline-block; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+  color:#e6b257; border:1px solid rgba(230,178,87,.45); background:rgba(230,178,87,.1);
+  padding:2px 7px; border-radius:20px; margin:0 0 8px; cursor:help;
+}
 .v-photo{ width:100%; border-radius:6px; margin:8px 0 0; display:block; }
 .leaflet-popup-content-wrapper{ background:var(--surface); color:var(--ink); border-radius:8px; box-shadow:var(--shadow); }
 .leaflet-popup-tip{ background:var(--surface); }
@@ -163,6 +168,27 @@ a{ color:var(--accent); }
   font-size:13.5px; color:var(--accent); margin:0 0 14px;
 }
 .detail-when b{ font-size:17px; color:var(--ink); font-weight:600; }
+
+/* how much weight a claim carries */
+.detail-conf{
+  font-size:12.5px; line-height:1.5; margin:0 0 14px;
+  padding:8px 11px; border-radius:7px;
+  border:1px solid var(--line); background:rgba(0,0,0,.2);
+  color:var(--ink-faint);
+}
+.detail-conf b{ color:var(--ink-dim); font-weight:600; }
+.detail-conf.conf-verified{
+  border-color:rgba(143,214,148,.3); background:rgba(143,214,148,.07);
+}
+.detail-conf.conf-verified b{ color:#8fd694; }
+.detail-conf.conf-approximate{
+  border-color:rgba(226,180,111,.32); background:rgba(226,180,111,.07);
+}
+.detail-conf.conf-approximate b{ color:#e2b46f; }
+.detail-conf.conf-recalled{
+  border-color:rgba(224,112,92,.35); background:rgba(224,112,92,.08);
+}
+.detail-conf.conf-recalled b{ color:#e0705c; }
 .detail-desc{
   font-size:14.5px; line-height:1.65; color:var(--ink-dim);
   margin:0 0 16px; white-space:pre-wrap;
@@ -215,6 +241,9 @@ legend{ font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:va
   border-color:var(--accent); box-shadow:0 0 0 3px var(--ring);
 }
 .field-pair{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.lookup-row{ display:flex; gap:8px; }
+.lookup-row input{ flex:1; }
+.lookup-row .btn{ flex:0 0 auto; height:34px; }
 .hint{ font-size:12px; color:var(--ink-faint); line-height:1.5; margin:8px 0 0; }
 .about{ font-size:13px; line-height:1.6; color:var(--ink-faint); margin:0; }
 

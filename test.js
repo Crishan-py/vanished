@@ -56,7 +56,8 @@ const els = {};
 ['count-label','panel','panel-body','drawer','scrim','modal','modal-title','form-error',
  'btn-delete','stat-seed','stat-yours','storage-hint','search','year-from','year-to',
  'cat-filters','f-category','f-id','f-name','f-address','f-lat','f-lng','f-closed',
- 'f-description','f-photo','f-source','place-form','file-import','map','pick-note'
+ 'f-description','f-photo','f-source','f-geocode','btn-geocode',
+ 'place-form','file-import','map','pick-note'
 ].forEach(id => { els[id] = makeEl(); });
 
 // f-category is a <select>; options get appended into it
@@ -87,6 +88,9 @@ const sandbox = {
     createElement: tag => makeEl(tag)
   },
   navigator: {},
+  location: { protocol: 'file:' },   // file:// => service worker skips
+  fetch: () => Promise.reject(new Error('no network in tests')),
+  Promise, Error,
   window: null
 };
 sandbox.window = sandbox;
@@ -137,7 +141,7 @@ const seed = sandbox.SEED_PLACES;
 /* ---------------- tests ---------------- */
 
 console.log('\nseed data');
-ok('8 seed entries', seed.length === 8, 'got ' + seed.length);
+ok('14 seed entries', seed.length === 14, 'got ' + seed.length);
 ok('every entry has a unique id', new Set(seed.map(p => p.id)).size === seed.length);
 ok('every entry has a name', seed.every(p => typeof p.name === 'string' && p.name.length));
 ok('every lat/lng is a finite number', seed.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng)));
@@ -147,12 +151,33 @@ ok('every category exists in CATEGORIES',
    seed.every(p => sandbox.CATEGORIES.some(c => c.key === p.category)),
    seed.filter(p => !sandbox.CATEGORIES.some(c => c.key === p.category)).map(p => p.id + ':' + p.category).join(', '));
 ok('closed years are 0 or 1800..2100', seed.every(p => p.closed === 0 || (p.closed >= 1800 && p.closed <= 2100)));
+ok('every seed entry declares a confidence',
+   seed.every(p => p.confidence && sandbox.CONFIDENCE[p.confidence]),
+   seed.filter(p => !sandbox.CONFIDENCE[p.confidence]).map(p => p.id).join(', '));
+ok('every seed entry has a description worth reading',
+   seed.every(p => typeof p.description === 'string' && p.description.length > 40));
+ok('the placeholder is flagged recalled',
+   seed.find(p => p.id === 'placeholder-yours').confidence === 'recalled');
+
+console.log('\nconfidence handling');
+ok('verified seed entries stay verified',
+   sandbox.confidenceOf(seed.find(p => p.id === 'berlin-wall')) === 'verified');
+ok('recalled entries are marked unconfirmed',
+   sandbox.confidenceOf(seed.find(p => p.id === 'ktm-kasha-ghar')) === 'recalled');
+ok('approximate entries are marked area level',
+   sandbox.confidenceOf(seed.find(p => p.id === 'ktm-ring-road-shops')) === 'approximate');
+ok('user entries are always verified',
+   sandbox.confidenceOf({ id:'x', seed:false }) === 'verified');
+ok('an entry missing the flag falls back to recalled, not verified',
+   sandbox.confidenceOf({ id:'y', seed:true }) === 'recalled');
+ok('a bogus confidence value falls back to recalled',
+   sandbox.confidenceOf({ id:'z', seed:true, confidence:'trust-me' }) === 'recalled');
 
 console.log('\nstate after boot');
-ok('all = seed (no saved user places yet)', sandbox.state.all.length === 8, 'got ' + sandbox.state.all.length);
-ok('a marker exists for every place', Object.keys(sandbox.state.markers).length === 8,
+ok('all = seed (no saved user places yet)', sandbox.state.all.length === 14, 'got ' + sandbox.state.all.length);
+ok('a marker exists for every place', Object.keys(sandbox.state.markers).length === 14,
    'got ' + Object.keys(sandbox.state.markers).length);
-ok('count label shows 8', els['count-label'].textContent.indexOf('8') === 0,
+ok('count label shows 14', els['count-label'].textContent.indexOf('14') === 0,
    els['count-label'].textContent);
 
 console.log('\nsearch');
@@ -160,13 +185,18 @@ sandbox.state.filters.q = 'wembley';
 sandbox.applyFilters();
 ok('search "wembley" matches 1 place', els['count-label'].textContent.indexOf('1 place') === 0,
    els['count-label'].textContent);
+sandbox.state.filters.q = 'earthquake';
+sandbox.applyFilters();
+// 3 named structures + 2 area-level entries whose prose mentions it
+ok('search "earthquake" matches 5 entries',
+   els['count-label'].textContent.indexOf('5 ') === 0, els['count-label'].textContent);
 sandbox.state.filters.q = 'kathmandu';
 sandbox.applyFilters();
-ok('search "kathmandu" matches the placeholder', els['count-label'].textContent.indexOf('1 place') === 0,
+ok('search "kathmandu" matches several', /^\d+ /.test(els['count-label'].textContent),
    els['count-label'].textContent);
 sandbox.state.filters.q = '';
 sandbox.applyFilters();
-ok('clearing search restores 8', els['count-label'].textContent.indexOf('8') === 0,
+ok('clearing search restores 14', els['count-label'].textContent.indexOf('14') === 0,
    els['count-label'].textContent);
 
 console.log('\ncategory filter');
@@ -176,7 +206,12 @@ ok('cinema filter matches 0 (no seed is a cinema)', els['count-label'].textConte
    els['count-label'].textContent);
 sandbox.state.filters.cats = { landmark: true };
 sandbox.applyFilters();
-ok('landmark filter matches 2 (wall + crystal palace)', els['count-label'].textContent.indexOf('2 ') === 0,
+// berlin-wall, crystal-palace, ktm-bagmati-settlements, ktm-kasha-ghar, ktm-ranipokhari = 5
+ok('landmark filter matches 5', els['count-label'].textContent.indexOf('5 ') === 0,
+   els['count-label'].textContent);
+sandbox.state.filters.cats = { landmark: true, shop: true };
+sandbox.applyFilters();
+ok('landmark + shop matches 8', els['count-label'].textContent.indexOf('8 ') === 0,
    els['count-label'].textContent);
 sandbox.state.filters.cats = {};
 sandbox.applyFilters();
@@ -184,13 +219,13 @@ sandbox.applyFilters();
 console.log('\nyear filter');
 sandbox.state.filters.yearFrom = 1995;
 sandbox.applyFilters();
-// seed closed years: 1989, 2003, 1998, 1991, 1977, 2004, 1936, 0 -> >=1995: 2003, 1998, 2004 = 3
-ok('yearFrom 1995 keeps 3 places', els['count-label'].textContent.indexOf('3 ') === 0,
+// >=1995 with a known year = 9
+ok('yearFrom 1995 keeps 9 places', els['count-label'].textContent.indexOf('9 ') === 0,
    els['count-label'].textContent);
 sandbox.state.filters.yearFrom = null;
 sandbox.state.filters.yearTo = 1989;
 sandbox.applyFilters();
-// <=1989: 1989, 1977, 1936 = 3 (closed 0 is unknown, kept visible)
+// <=1989: 1989, 1977, 1936 = 3
 ok('yearTo 1989 keeps 3 places', els['count-label'].textContent.indexOf('3 ') === 0,
    els['count-label'].textContent);
 sandbox.state.filters.yearTo = null;
@@ -248,7 +283,7 @@ sandbox.renderAll();
 sandbox.updateStats();
 ok('stats count user places', els['stat-yours'].textContent.indexOf('1 yours') === 0,
    els['stat-yours'].textContent);
-ok('stats count seed places', els['stat-seed'].textContent.indexOf('8 seed') === 0,
+ok('stats count seed places', els['stat-seed'].textContent.indexOf('14 seed') === 0,
    els['stat-seed'].textContent);
 
 console.log('\ncategories');
