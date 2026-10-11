@@ -1,0 +1,5 @@
+# nothing to ignore yet — this project has no build step and no dependencies
+# node_modules/
+# test-output.txt
+.DS_Store
+Thumbs.db

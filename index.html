@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<title>Vanished — places that no longer exist</title>
+<meta name="description" content="A map of places that no longer exist: shuttered malls, closed arcades, demolished cinemas.">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header id="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <h1>Vanished</h1>
+    <span class="brand-sub" id="count-label"></span>
+  </div>
+
+  <div class="tools">
+    <label class="search-wrap" for="search">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
+      <input id="search" type="search" placeholder="Search name, address, story&hellip;" autocomplete="off">
+    </label>
+    <button id="btn-add" class="btn btn-primary" type="button">+ Add a place</button>
+    <button id="btn-menu" class="btn btn-icon" type="button" title="Filters, data, about" aria-label="Menu">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="stage">
+  <div id="map" role="application" aria-label="Map of vanished places"></div>
+</main>
+
+<aside id="panel" aria-label="Place details">
+  <div id="panel-body">
+    <div class="panel-empty">
+      <p class="panel-empty-title">Nothing here yet.</p>
+      <p>Pick a marker, or add somewhere that used to be. Most maps remember the buildings that are still standing.</p>
+    </div>
+  </div>
+</aside>
+
+<!-- filter / data drawer -->
+<div id="drawer" class="drawer" hidden>
+  <div class="drawer-head">
+    <h2>Filter</h2>
+    <button class="btn btn-icon" id="drawer-close" type="button" aria-label="Close">&times;</button>
+  </div>
+
+  <div class="drawer-body">
+    <fieldset>
+      <legend>Kind of place</legend>
+      <div id="cat-filters" class="chip-grid"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>When it closed</legend>
+      <label class="field">
+        <span>Earliest year</span>
+        <input id="year-from" type="number" inputmode="numeric" placeholder="1900" min="1800" max="2100">
+      </label>
+      <label class="field">
+        <span>Latest year</span>
+        <input id="year-to" type="number" inputmode="numeric" placeholder="2026" min="1800" max="2100">
+      </label>
+      <p class="hint">Leave blank for no limit.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Your data</legend>
+      <div class="stat-row">
+        <span id="stat-seed"></span>
+        <span id="stat-yours"></span>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="btn-export" type="button">Export JSON</button>
+        <button class="btn" id="btn-import" type="button">Import JSON</button>
+        <input id="file-import" type="file" accept="application/json,.json" hidden>
+      </div>
+      <button class="btn btn-danger" id="btn-reset" type="button">Reset my edits</button>
+      <p class="hint" id="storage-hint"></p>
+    </fieldset>
+
+    <fieldset>
+      <legend>About</legend>
+      <p class="about">
+        Every pin is a place that isn't there anymore. Nothing here is verified
+        automatically &mdash; coordinates in the seed file are approximate, and the
+        stories are the part that actually matters.
+      </p>
+    </fieldset>
+  </div>
+</div>
+<div id="scrim" hidden></div>
+
+<!-- add / edit form -->
+<div id="modal" class="modal" hidden>
+  <form id="place-form" novalidate>
+    <div class="modal-head">
+      <h2 id="modal-title">Add a place</h2>
+      <button class="btn btn-icon" id="modal-close" type="button" aria-label="Close">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <input type="hidden" id="f-id">
+
+      <label class="field">
+        <span>Name <b aria-hidden="true">*</b></span>
+        <input id="f-name" type="text" required maxlength="90" placeholder="The old Odeon on Boudha">
+      </label>
+
+      <label class="field">
+        <span>Address or area</span>
+        <input id="f-address" type="text" maxlength="140" placeholder="Lakeside, Kathmandu">
+      </label>
+
+      <div class="field-pair">
+        <label class="field">
+          <span>Latitude <b aria-hidden="true">*</b></span>
+          <input id="f-lat" type="number" step="any" min="-90" max="90" required placeholder="27.6710">
+        </label>
+        <label class="field">
+          <span>Longitude <b aria-hidden="true">*</b></span>
+          <input id="f-lng" type="number" step="any" min="-180" max="180" required placeholder="85.3400">
+        </label>
+      </div>
+      <button type="button" class="btn btn-small" id="btn-use-point">Use the point I clicked on the map</button>
+
+      <div class="field-pair">
+        <label class="field">
+          <span>Year it closed</span>
+          <input id="f-closed" type="number" min="1800" max="2100" placeholder="1997">
+        </label>
+        <label class="field">
+          <span>Kind</span>
+          <select id="f-category"></select>
+        </label>
+      </div>
+
+      <label class="field">
+        <span>What was it</span>
+        <textarea id="f-description" rows="4" maxlength="1200" placeholder="Two screens, one balcony. The balcony was always the better seat."></textarea>
+      </label>
+
+      <label class="field">
+        <span>Photo link</span>
+        <input id="f-photo" type="url" maxlength="600" placeholder="https://&hellip;">
+      </label>
+
+      <label class="field">
+        <span>Source link</span>
+        <input id="f-source" type="url" maxlength="600" placeholder="https://&hellip;">
+      </label>
+
+      <p class="form-error" id="form-error" hidden></p>
+    </div>
+
+    <div class="modal-foot">
+      <button type="button" class="btn btn-danger" id="btn-delete" hidden>Delete</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="btn-cancel">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="btn-save">Save place</button>
+    </div>
+  </form>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="places.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
